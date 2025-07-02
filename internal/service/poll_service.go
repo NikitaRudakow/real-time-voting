@@ -86,22 +86,9 @@ func (s *PollService) GetPoll(id uuid.UUID) (dto.PollResponse, error) {
 	return resp, nil
 }
 
-func (s *PollService) GetAllPolls() ([]dto.PollResponse, error) {
-	polls, err := s.pollRepo.GetAll(nil)
-	if err != nil {
-		return []dto.PollResponse{}, err
-	}
-
-	var responses []dto.PollResponse
-	for _, poll := range polls {
-		responses = append(responses, pollToResponse(poll))
-	}
-
-	return responses, nil
-}
-
-func (s *PollService) GetActivePolls() ([]dto.PollResponse, error) {
-	polls, err := s.pollRepo.GetActive(nil)
+func (s *PollService) GetPolls(page, pageSize int, onlyActive bool) ([]dto.PollResponse, error) {
+	offset := (page - 1) * pageSize
+	polls, err := s.pollRepo.GetPolls(nil, pageSize, offset, onlyActive)
 	if err != nil {
 		return []dto.PollResponse{}, err
 	}

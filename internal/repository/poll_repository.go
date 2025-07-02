@@ -134,190 +134,6 @@ func (r *PollRepository) GetByID(tx *sql.Tx, id uuid.UUID) (*models.Poll, error)
 	poll.TotalVotes = totalVotes
 	return poll, nil
 }
-
-func (r *PollRepository) GetAll(tx *sql.Tx) ([]*models.Poll, error) {
-	query := `
-		SELECT p.id, p.question, p.is_active, p.created_at, p.updated_at, p.ends_at, p.created_by,
-		       o.id, o.poll_id, o.text,
-		       COALESCE(COUNT(v.id), 0) as vote_count
-		FROM polls p
-		LEFT JOIN poll_options o ON p.id = o.poll_id
-		LEFT JOIN votes v ON o.id = v.option_id
-		GROUP BY p.id, p.question, p.is_active, p.created_at, p.updated_at, p.ends_at, p.created_by, o.id, o.poll_id, o.text
-		ORDER BY p.created_at DESC, o.id
-	`
-
-	var rows *sql.Rows
-	var err error
-	if tx != nil {
-		rows, err = tx.Query(query)
-	} else {
-		rows, err = r.db.Query(query)
-	}
-	if err != nil {
-		return []*models.Poll{}, fmt.Errorf("failed to get polls: %w", err)
-	}
-	defer rows.Close()
-
-	pollMap := make(map[uuid.UUID]*models.Poll)
-
-	for rows.Next() {
-		var (
-			pollID               uuid.UUID
-			question             string
-			isActive             bool
-			createdAt, updatedAt time.Time
-			endsAt               sql.NullTime
-			createdBy            uuid.UUID
-			optionID             sql.NullString
-			optionPollID         sql.NullString
-			optionText           sql.NullString
-			voteCount            int
-		)
-
-		err := rows.Scan(
-			&pollID, &question, &isActive, &createdAt, &updatedAt, &endsAt, &createdBy,
-			&optionID, &optionPollID, &optionText,
-			&voteCount,
-		)
-		if err != nil {
-			return []*models.Poll{}, fmt.Errorf("failed to scan poll with options: %w", err)
-		}
-
-		poll, exists := pollMap[pollID]
-		if !exists {
-			createdByPtr := createdBy
-			poll = &models.Poll{
-				ID:        pollID,
-				Question:  question,
-				IsActive:  isActive,
-				CreatedAt: createdAt,
-				UpdatedAt: updatedAt,
-				EndsAt:    nil,
-				CreatedBy: &createdByPtr,
-			}
-			if endsAt.Valid {
-				poll.EndsAt = &endsAt.Time
-			}
-			poll.Options = []models.Option{}
-			pollMap[pollID] = poll
-		}
-
-		if optionID.Valid && optionPollID.Valid && optionText.Valid {
-			optID, err1 := uuid.Parse(optionID.String)
-			optPollID, err2 := uuid.Parse(optionPollID.String)
-			if err1 == nil && err2 == nil {
-				poll.Options = append(poll.Options, models.Option{
-					ID:        optID,
-					PollID:    optPollID,
-					Text:      optionText.String,
-					VoteCount: voteCount,
-				})
-				poll.TotalVotes += voteCount
-			}
-		}
-	}
-
-	var polls []*models.Poll
-	for _, poll := range pollMap {
-		polls = append(polls, poll)
-	}
-
-	return polls, nil
-}
-
-func (r *PollRepository) GetActive(tx *sql.Tx) ([]*models.Poll, error) {
-	query := `
-		SELECT p.id, p.question, p.is_active, p.created_at, p.updated_at, p.ends_at, p.created_by,
-		       o.id, o.poll_id, o.text,
-		       COALESCE(COUNT(v.id), 0) as vote_count
-		FROM polls p
-		LEFT JOIN poll_options o ON p.id = o.poll_id
-		LEFT JOIN votes v ON o.id = v.option_id
-		WHERE p.is_active = true AND (p.ends_at IS NULL OR p.ends_at > $1)
-		GROUP BY p.id, p.question, p.is_active, p.created_at, p.updated_at, p.ends_at, p.created_by, o.id, o.poll_id, o.text
-		ORDER BY p.created_at DESC, o.id
-	`
-
-	var rows *sql.Rows
-	var err error
-	if tx != nil {
-		rows, err = tx.Query(query, time.Now())
-	} else {
-		rows, err = r.db.Query(query, time.Now())
-	}
-	if err != nil {
-		return []*models.Poll{}, fmt.Errorf("failed to get active polls: %w", err)
-	}
-	defer rows.Close()
-
-	pollMap := make(map[uuid.UUID]*models.Poll)
-
-	for rows.Next() {
-		var (
-			pollID               uuid.UUID
-			question             string
-			isActive             bool
-			createdAt, updatedAt time.Time
-			endsAt               sql.NullTime
-			createdBy            uuid.UUID
-			optionID             sql.NullString
-			optionPollID         sql.NullString
-			optionText           sql.NullString
-			voteCount            int
-		)
-
-		err := rows.Scan(
-			&pollID, &question, &isActive, &createdAt, &updatedAt, &endsAt, &createdBy,
-			&optionID, &optionPollID, &optionText,
-			&voteCount,
-		)
-		if err != nil {
-			return []*models.Poll{}, fmt.Errorf("failed to scan poll with options: %w", err)
-		}
-
-		poll, exists := pollMap[pollID]
-		if !exists {
-			createdByPtr := createdBy
-			poll = &models.Poll{
-				ID:        pollID,
-				Question:  question,
-				IsActive:  isActive,
-				CreatedAt: createdAt,
-				UpdatedAt: updatedAt,
-				EndsAt:    nil,
-				CreatedBy: &createdByPtr,
-			}
-			if endsAt.Valid {
-				poll.EndsAt = &endsAt.Time
-			}
-			poll.Options = []models.Option{}
-			pollMap[pollID] = poll
-		}
-
-		if optionID.Valid && optionPollID.Valid && optionText.Valid {
-			optID, err1 := uuid.Parse(optionID.String)
-			optPollID, err2 := uuid.Parse(optionPollID.String)
-			if err1 == nil && err2 == nil {
-				poll.Options = append(poll.Options, models.Option{
-					ID:        optID,
-					PollID:    optPollID,
-					Text:      optionText.String,
-					VoteCount: voteCount,
-				})
-				poll.TotalVotes += voteCount
-			}
-		}
-	}
-
-	var polls []*models.Poll
-	for _, poll := range pollMap {
-		polls = append(polls, poll)
-	}
-
-	return polls, nil
-}
-
 func (r *PollRepository) Update(tx *sql.Tx, poll *models.Poll) error {
 	query := `
 		UPDATE polls
@@ -350,4 +166,111 @@ func (r *PollRepository) Delete(tx *sql.Tx, id uuid.UUID) error {
 	}
 
 	return nil
+}
+
+func (r *PollRepository) GetPolls(tx *sql.Tx, limit, offset int, onlyActive bool) ([]*models.Poll, error) {
+	var (
+		query string
+		args  []interface{}
+	)
+	now := time.Now()
+	if onlyActive {
+		query = `
+			SELECT p.id, p.question, p.is_active, p.created_at, p.updated_at, p.ends_at, p.created_by,
+			       o.id, o.poll_id, o.text,
+			       COALESCE(COUNT(v.id), 0) as vote_count
+			FROM polls p
+			LEFT JOIN poll_options o ON p.id = o.poll_id
+			LEFT JOIN votes v ON o.id = v.option_id
+			WHERE p.is_active = true AND (p.ends_at IS NULL OR p.ends_at > $1)
+			GROUP BY p.id, p.question, p.is_active, p.created_at, p.updated_at, p.ends_at, p.created_by, o.id, o.poll_id, o.text
+			ORDER BY p.created_at DESC, o.id
+			LIMIT $2 OFFSET $3
+		`
+		args = []interface{}{now, limit, offset}
+	} else {
+		query = `
+			SELECT p.id, p.question, p.is_active, p.created_at, p.updated_at, p.ends_at, p.created_by,
+			       o.id, o.poll_id, o.text,
+			       COALESCE(COUNT(v.id), 0) as vote_count
+			FROM polls p
+			LEFT JOIN poll_options o ON p.id = o.poll_id
+			LEFT JOIN votes v ON o.id = v.option_id
+			GROUP BY p.id, p.question, p.is_active, p.created_at, p.updated_at, p.ends_at, p.created_by, o.id, o.poll_id, o.text
+			ORDER BY p.created_at DESC, o.id
+			LIMIT $1 OFFSET $2
+		`
+		args = []interface{}{limit, offset}
+	}
+
+	var rows *sql.Rows
+	var err error
+	if tx != nil {
+		rows, err = tx.Query(query, args...)
+	} else {
+		rows, err = r.db.Query(query, args...)
+	}
+	if err != nil {
+		return []*models.Poll{}, fmt.Errorf("failed to get polls: %w", err)
+	}
+	defer rows.Close()
+	pollMap := make(map[uuid.UUID]*models.Poll)
+	for rows.Next() {
+		var (
+			pollID               uuid.UUID
+			question             string
+			isActive             bool
+			createdAt, updatedAt time.Time
+			endsAt               sql.NullTime
+			createdBy            uuid.UUID
+			optionID             sql.NullString
+			optionPollID         sql.NullString
+			optionText           sql.NullString
+			voteCount            int
+		)
+		err := rows.Scan(
+			&pollID, &question, &isActive, &createdAt, &updatedAt, &endsAt, &createdBy,
+			&optionID, &optionPollID, &optionText,
+			&voteCount,
+		)
+		if err != nil {
+			return []*models.Poll{}, fmt.Errorf("failed to scan poll with options: %w", err)
+		}
+		poll, exists := pollMap[pollID]
+		if !exists {
+			createdByPtr := createdBy
+			poll = &models.Poll{
+				ID:        pollID,
+				Question:  question,
+				IsActive:  isActive,
+				CreatedAt: createdAt,
+				UpdatedAt: updatedAt,
+				EndsAt:    nil,
+				CreatedBy: &createdByPtr,
+			}
+			if endsAt.Valid {
+				poll.EndsAt = &endsAt.Time
+			}
+			poll.Options = []models.Option{}
+			pollMap[pollID] = poll
+		}
+		if optionID.Valid && optionPollID.Valid && optionText.Valid {
+			optID, err1 := uuid.Parse(optionID.String)
+			optPollID, err2 := uuid.Parse(optionPollID.String)
+			if err1 == nil && err2 == nil {
+				poll.Options = append(poll.Options, models.Option{
+					ID:        optID,
+					PollID:    optPollID,
+					Text:      optionText.String,
+					VoteCount: voteCount,
+				})
+				poll.TotalVotes += voteCount
+			}
+		}
+	}
+	var polls []*models.Poll
+	for _, poll := range pollMap {
+		polls = append(polls, poll)
+	}
+	return polls, nil
 }

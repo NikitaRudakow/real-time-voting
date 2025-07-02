@@ -220,6 +220,18 @@ paths:
       consumes:
       - application/json
       description: Get list of all polls
+      parameters:
+      - description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
       produces:
       - application/json
       responses:
@@ -408,6 +420,18 @@ paths:
       consumes:
       - application/json
       description: Get list of currently active polls
+      parameters:
+      - description: Page number
+        in: query
+        minimum: 1
+        name: page
+        type: integer
+      - description: Page size
+        in: query
+        maximum: 100
+        minimum: 1
+        name: page_size
+        type: integer
       produces:
       - application/json
       responses:

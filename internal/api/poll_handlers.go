@@ -56,10 +56,24 @@ func (s *Server) createPoll(c *gin.Context) {
 // @Tags polls
 // @Accept json
 // @Produce json
+// @Param page query int false "Page number" minimum(1)
+// @Param page_size query int false "Page size" minimum(1) maximum(100)
 // @Success 200 {array} dto.PollResponse
 // @Router /polls [get]
 func (s *Server) getAllPolls(c *gin.Context) {
-	polls, err := s.pollService.GetAllPolls()
+	var pagination dto.PaginationQuery
+	if err := c.ShouldBindQuery(&pagination); err != nil {
+		s.handleValidationError(c, err)
+		return
+	}
+	if pagination.Page == 0 {
+		pagination.Page = 1
+	}
+	if pagination.PageSize == 0 {
+		pagination.PageSize = 10
+	}
+
+	polls, err := s.pollService.GetPolls(pagination.Page, pagination.PageSize, false)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to get all polls")
 		s.handleDatabaseError(c, err)
@@ -78,10 +92,24 @@ func (s *Server) getAllPolls(c *gin.Context) {
 // @Tags polls
 // @Accept json
 // @Produce json
+// @Param page query int false "Page number" minimum(1)
+// @Param page_size query int false "Page size" minimum(1) maximum(100)
 // @Success 200 {array} dto.PollResponse
 // @Router /polls/active [get]
 func (s *Server) getActivePolls(c *gin.Context) {
-	polls, err := s.pollService.GetActivePolls()
+	var pagination dto.PaginationQuery
+	if err := c.ShouldBindQuery(&pagination); err != nil {
+		s.handleValidationError(c, err)
+		return
+	}
+	if pagination.Page == 0 {
+		pagination.Page = 1
+	}
+	if pagination.PageSize == 0 {
+		pagination.PageSize = 10
+	}
+
+	polls, err := s.pollService.GetPolls(pagination.Page, pagination.PageSize, true)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("Failed to get active polls")
 		s.handleDatabaseError(c, err)

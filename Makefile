@@ -1,4 +1,4 @@
-.PHONY: build run test clean deps tidy docker-build docker-run docker-stop migrate-up migrate-down swagger
+.PHONY: build run clean deps tidy docker-build docker-run docker-stop migrate-up migrate-down swagger
 
 export DATABASE_URL ?= postgres://postgres:password@localhost:5432/voting_db?sslmode=disable
 
